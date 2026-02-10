@@ -48,6 +48,27 @@ namespace LibraryBookManager
                     return;
                 }
                 
+                // Check if this borrower already has an unreturned copy of this book
+                string checkBorrowerSql = @"SELECT COUNT(*) FROM BorrowingHistory 
+                                           WHERE BookTitle = @bookTitle 
+                                           AND BorrowerName = @borrower 
+                                           AND Status = 'Borrowed'";
+                using (SQLiteCommand checkBorrowerCmd = new SQLiteCommand(checkBorrowerSql, conn))
+                {
+                    checkBorrowerCmd.Parameters.AddWithValue("@bookTitle", bookTitle);
+                    checkBorrowerCmd.Parameters.AddWithValue("@borrower", txtBorrower.Text.Trim());
+                    
+                    int existingBorrowings = Convert.ToInt32(checkBorrowerCmd.ExecuteScalar());
+                    if (existingBorrowings > 0)
+                    {
+                        MessageBox.Show($"{txtBorrower.Text.Trim()} has already borrowed this book and hasn't returned it yet!\n\nOne person can only borrow one copy of each unique book.", 
+                                      "Validation Error", 
+                                      MessageBoxButtons.OK, 
+                                      MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+                
                 // Decrease available copies
                 string updateSql = "UPDATE Books SET AvailableCopies = AvailableCopies - 1 WHERE Id = @id";
                 using (SQLiteCommand updateCmd = new SQLiteCommand(updateSql, conn))
@@ -70,10 +91,11 @@ namespace LibraryBookManager
                 }
             }
 
+            string borrowerName = txtBorrower.Text.Trim();
             txtBorrower.Clear();
             LoadBooks();
             LoadBorrowingHistory();
-            MessageBox.Show($"Book borrowed successfully by {txtBorrower.Text}!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show($"Book borrowed successfully by {borrowerName}!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void btnReturn_Click(object sender, EventArgs e)
@@ -83,6 +105,14 @@ namespace LibraryBookManager
                 MessageBox.Show("Please select a book to return!", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+            
+            if (string.IsNullOrWhiteSpace(txtBorrower.Text))
+            {
+                MessageBox.Show("Please enter the borrower name to return the book!", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string borrowerName = "";
 
             using (SQLiteConnection conn = new SQLiteConnection(connectionString))
             {
@@ -91,8 +121,9 @@ namespace LibraryBookManager
                 // Check if there are any borrowed copies
                 int totalCopies = 0;
                 int availableCopies = 0;
+                string bookTitle = "";
                 
-                string checkSql = "SELECT TotalCopies, AvailableCopies FROM Books WHERE Id = @id";
+                string checkSql = "SELECT Title, TotalCopies, AvailableCopies FROM Books WHERE Id = @id";
                 using (SQLiteCommand checkCmd = new SQLiteCommand(checkSql, conn))
                 {
                     checkCmd.Parameters.AddWithValue("@id", txtId.Text);
@@ -100,8 +131,9 @@ namespace LibraryBookManager
                     {
                         if (reader.Read())
                         {
-                            totalCopies = reader.GetInt32(0);
-                            availableCopies = reader.GetInt32(1);
+                            bookTitle = reader.GetString(0);
+                            totalCopies = reader.GetInt32(1);
+                            availableCopies = reader.GetInt32(2);
                         }
                     }
                 }
@@ -112,16 +144,18 @@ namespace LibraryBookManager
                     return;
                 }
                 
-                // Find the most recent unreturned borrowing record
+                // Find the most recent unreturned borrowing record for this borrower
                 int historyId = -1;
-                string borrowerName = "";
                 
                 string findBorrowingSql = @"SELECT Id, BorrowerName FROM BorrowingHistory 
-                                           WHERE BookId = @bookId AND Status = 'Borrowed' 
+                                           WHERE BookId = @bookId 
+                                           AND BorrowerName = @borrower 
+                                           AND Status = 'Borrowed' 
                                            ORDER BY Id DESC LIMIT 1";
                 using (SQLiteCommand findCmd = new SQLiteCommand(findBorrowingSql, conn))
                 {
                     findCmd.Parameters.AddWithValue("@bookId", txtId.Text);
+                    findCmd.Parameters.AddWithValue("@borrower", txtBorrower.Text.Trim());
                     using (SQLiteDataReader reader = findCmd.ExecuteReader())
                     {
                         if (reader.Read())
@@ -134,7 +168,10 @@ namespace LibraryBookManager
                 
                 if (historyId == -1)
                 {
-                    MessageBox.Show("No borrowing record found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"No borrowing record found for '{txtBorrower.Text.Trim()}' with this book!\n\nPlease verify:\n• The borrower name is correct\n• This person actually borrowed this book\n• The book hasn't already been returned", 
+                                  "Validation Error", 
+                                  MessageBoxButtons.OK, 
+                                  MessageBoxIcon.Warning);
                     return;
                 }
                 
@@ -161,7 +198,7 @@ namespace LibraryBookManager
             ClearFields();
             LoadBooks();
             LoadBorrowingHistory();
-            MessageBox.Show("Book returned successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show($"Book returned successfully by {borrowerName}!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

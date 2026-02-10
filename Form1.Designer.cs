@@ -286,6 +286,7 @@
             dataGridViewHistory.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dataGridViewHistory.Size = new Size(1032, 244);
             dataGridViewHistory.TabIndex = 19;
+            dataGridViewHistory.CellClick += dataGridViewHistory_CellClick;
             // 
             // label1
             // 

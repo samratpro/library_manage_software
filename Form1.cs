@@ -151,7 +151,7 @@ namespace LibraryBookManager
             using (SQLiteConnection conn = new SQLiteConnection(connectionString))
             {
                 conn.Open();
-                string sql = @"SELECT Id, BookTitle as 'Book Title', BorrowerName as 'Borrower', 
+                string sql = @"SELECT Id, BookId, BookTitle as 'Book Title', BorrowerName as 'Borrower', 
                               BorrowedDate as 'Borrowed Date', ReturnedDate as 'Returned Date', Status 
                               FROM BorrowingHistory ORDER BY Id DESC LIMIT 100";
 
@@ -160,6 +160,12 @@ namespace LibraryBookManager
                     DataTable dt = new DataTable();
                     adapter.Fill(dt);
                     dataGridViewHistory.DataSource = dt;
+                    
+                    // Hide the Id and BookId columns (used internally)
+                    if (dataGridViewHistory.Columns.Contains("Id"))
+                        dataGridViewHistory.Columns["Id"].Visible = false;
+                    if (dataGridViewHistory.Columns.Contains("BookId"))
+                        dataGridViewHistory.Columns["BookId"].Visible = false;
                 }
             }
         }
@@ -415,6 +421,67 @@ namespace LibraryBookManager
         private void txtTitle_TextChanged(object sender, EventArgs e)
         {
 
+        }
+
+        private void dataGridViewHistory_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            try
+            {
+                if (e.RowIndex >= 0 && e.RowIndex < dataGridViewHistory.Rows.Count)
+                {
+                    DataGridViewRow historyRow = dataGridViewHistory.Rows[e.RowIndex];
+
+                    if (historyRow != null && !historyRow.IsNewRow)
+                    {
+                        // Get BookId and Borrower name from the history row
+                        string bookId = "";
+                        string borrowerName = "";
+
+                        if (dataGridViewHistory.Columns.Contains("BookId") && historyRow.Cells["BookId"] != null && historyRow.Cells["BookId"].Value != null)
+                            bookId = historyRow.Cells["BookId"].Value.ToString();
+
+                        if (dataGridViewHistory.Columns.Contains("Borrower") && historyRow.Cells["Borrower"] != null && historyRow.Cells["Borrower"].Value != null)
+                            borrowerName = historyRow.Cells["Borrower"].Value.ToString();
+
+                        // Fill in the borrower name
+                        if (!string.IsNullOrEmpty(borrowerName))
+                        {
+                            txtBorrower.Text = borrowerName;
+                        }
+
+                        // Find and select the corresponding book in the books grid
+                        if (!string.IsNullOrEmpty(bookId))
+                        {
+                            foreach (DataGridViewRow bookRow in dataGridViewBooks.Rows)
+                            {
+                                if (bookRow.Cells["Id"] != null && bookRow.Cells["Id"].Value != null)
+                                {
+                                    if (bookRow.Cells["Id"].Value.ToString() == bookId)
+                                    {
+                                        // Clear current selection
+                                        dataGridViewBooks.ClearSelection();
+                                        
+                                        // Select the book row
+                                        bookRow.Selected = true;
+                                        
+                                        // Ensure the row is visible
+                                        dataGridViewBooks.FirstDisplayedScrollingRowIndex = bookRow.Index;
+                                        
+                                        // Trigger the cell click event to populate the form fields
+                                        dataGridViewBooks_CellClick(dataGridViewBooks, new DataGridViewCellEventArgs(0, bookRow.Index));
+                                        
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Silently handle any errors when clicking on history grid cells
+            }
         }
     }
 }
